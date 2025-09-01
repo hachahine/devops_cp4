@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  db:
+    image: container-registry.oracle.com/database/express:21.3.0-xe
+    container_name: oracle-xe
+    environment:
+      ORACLE_PWD: senha123
+    volumes:
+      - oracle-data:/opt/oracle/oradata
+      - ./sql-exercicio.revisao/init.sql:/opt/oracle/scripts/startup/init.sql:ro
+    ports:
+      - "1521:1521"
+    restart: unless-stopped
+    networks:
+      - cp4net
+    healthcheck:
+      test: ["CMD-SHELL", "echo exit | sqlplus system/senha123@localhost/XEPDB1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+
+  app:
+    build:
+      context: ./exercicio.revisao
+      dockerfile: Dockerfile
+    container_name: java-app
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:oracle:thin:@db:1521/XEPDB1
+      SPRING_DATASOURCE_USERNAME: system
+      SPRING_DATASOURCE_PASSWORD: senha123
+      JAVA_OPTS: ""
+      PORT: 8081
+      SPRING_PROFILES_ACTIVE: default
+    ports:
+      - "8081:8081"
+    restart: unless-stopped
+    networks:
+      - cp4net
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "8081"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    user: "appuser:appgroup"
+
+volumes:
+  oracle-data:
+
+networks:
+  cp4net:
+    driver: bridge
